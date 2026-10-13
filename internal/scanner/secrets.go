@@ -135,7 +135,10 @@ func isEnvFile(p string) bool {
 	return base == ".env" || strings.HasPrefix(base, ".env.")
 }
 
-func checkLine(f File, line int, s string, hits *[]SecretHit) {
+// CheckSecretLine matches one line against secret patterns.
+// It returns the rule metadata with masked evidence, never raw values.
+// ok is false for non-matches, placeholders, and low-entropy values.
+func CheckSecretLine(s string) (ruleID string, sev audit.Severity, masked, rec string, ok bool) {
 	for _, p := range secretPatterns {
 		m := p.re.FindStringSubmatch(s)
 		if m == nil {
@@ -152,9 +155,18 @@ func checkLine(f File, line int, s string, hits *[]SecretHit) {
 		if p.mask {
 			masked = redact.MaskValue(token)
 		}
-		*hits = append(*hits, SecretHit{
-			File: f, Line: line, RuleID: p.ruleID, Category: "secret",
-			Severity: p.sev, Masked: masked, Recommendation: p.rec,
-		})
+		return p.ruleID, p.sev, masked, p.rec, true
 	}
+	return "", "", "", "", false
+}
+
+func checkLine(f File, line int, s string, hits *[]SecretHit) {
+	ruleID, sev, masked, rec, ok := CheckSecretLine(s)
+	if !ok {
+		return
+	}
+	*hits = append(*hits, SecretHit{
+		File: f, Line: line, RuleID: ruleID, Category: "secret",
+		Severity: sev, Masked: masked, Recommendation: rec,
+	})
 }

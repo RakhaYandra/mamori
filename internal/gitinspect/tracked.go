@@ -17,6 +17,7 @@ type GitHit struct {
 	State          string // tracked | staged | untracked | history-only
 	RuleID         string
 	Severity       audit.Severity
+	Masked         string // redacted evidence, "" when nothing safe to show
 	Recommendation string
 }
 
