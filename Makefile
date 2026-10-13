@@ -9,6 +9,9 @@ build:
 
 release:
 	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o dist/mamori-linux-amd64 ./cmd/mamori
+	GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o dist/mamori-linux-arm64 ./cmd/mamori
+	sha256sum dist/mamori-linux-amd64 dist/mamori-linux-arm64 > dist/SHA256SUMS
+	cat dist/SHA256SUMS
 
 run: build
 	./bin/mamori
