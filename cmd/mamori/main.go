@@ -10,6 +10,7 @@ import (
 	"github.com/RakhaYandra/mamori/internal/auditor"
 	"github.com/RakhaYandra/mamori/internal/config"
 	"github.com/RakhaYandra/mamori/internal/gitinspect"
+	"github.com/RakhaYandra/mamori/internal/hook"
 	"github.com/RakhaYandra/mamori/internal/report"
 	"github.com/RakhaYandra/mamori/internal/rules"
 	"github.com/RakhaYandra/mamori/internal/scanner"
@@ -63,6 +64,7 @@ no network, no raw secrets in output.`,
 		reportCmd(),
 		rulesCmd(),
 		configCmd(),
+		hookCmd(),
 		versionCmd(),
 	)
 
@@ -414,6 +416,37 @@ func configCmd() *cobra.Command {
 		},
 	)
 	return cfg
+}
+
+func hookCmd() *cobra.Command {
+	hc := &cobra.Command{
+		Use:   "hook",
+		Short: "Manage git hooks",
+		Args:  cobra.NoArgs,
+	}
+	var force bool
+	install := &cobra.Command{
+		Use:   "install [path]",
+		Short: "Install a pre-commit hook blocking staged secrets",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			bin, err := os.Executable()
+			if err != nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), "hook install: %v\n", err)
+				return nil
+			}
+			p, err := hook.Install(firstArg(args), bin, force)
+			if err != nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), "hook install: %v\n", err)
+				return nil
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "installed %s\n", p)
+			return nil
+		},
+	}
+	install.Flags().BoolVar(&force, "force", false, "overwrite existing hook")
+	hc.AddCommand(install)
+	return hc
 }
 
 func versionCmd() *cobra.Command {
