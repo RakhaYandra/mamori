@@ -22,11 +22,11 @@ func writeFile(t *testing.T, root, rel, body string) {
 
 func scanRoot(t *testing.T, root string) []SecretHit {
 	t.Helper()
-	res, err := Walk(root, WalkOptions{MaxBytes: 1 << 20})
+	res, err := Walk(root, WalkOptions{MaxBytes: 1 << 20, ScanHidden: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	hits, partial := ScanSecrets(res.Files)
+	hits, partial := ScanSecrets(res.Files, 1<<20)
 	if len(partial) != 0 {
 		t.Fatalf("partial: %v", partial)
 	}
