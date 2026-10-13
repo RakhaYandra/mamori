@@ -84,6 +84,17 @@ SARIF carries rule IDs, titles, and relative paths only — never evidence
 fragments. Severity maps to `error` (high/critical), `warning` (medium),
 `note` (low/info).
 
+## Shell completions & man pages
+
+```bash
+./bin/mamori completion bash | sudo tee /usr/share/bash-completion/completions/mamori
+./bin/mamori completion zsh > ~/.zfunc/_mamori
+man -l docs/man/mamori.1   # or install docs/man/*.1 to a mandir
+```
+
+`completion` supports bash, zsh, fish, powershell. Regenerate pages
+with `make man`.
+
 ## Limitations
 
 * Pattern-based detection: unknown credential formats are missed

@@ -1,4 +1,4 @@
-.PHONY: build run vet test race cover lint fmt check audit clean install
+.PHONY: build run vet test race cover lint fmt check audit clean install man
 
 PREFIX ?= $(HOME)/.local
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo v0.1.0-dev)
@@ -34,6 +34,9 @@ lint:
 
 fmt:
 	gofmt -w .
+
+man: build
+	./bin/mamori man --dir docs/man
 
 check: vet test audit
 	golangci-lint run
