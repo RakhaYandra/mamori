@@ -1,6 +1,6 @@
 pkgbase = mamori-bin
 	pkgdesc = Local-first Linux security auditor: secrets, Git exposure, permissions, SSH
-	pkgver = 0.1.1
+	pkgver = 0.1.2
 	pkgrel = 1
 	url = https://github.com/RakhaYandra/mamori
 	arch = x86_64
@@ -9,11 +9,11 @@ pkgbase = mamori-bin
 	optdepends = git: Git inspection and pre-commit hook
 	provides = mamori
 	conflicts = mamori
-	source = SHA256SUMS::https://github.com/RakhaYandra/mamori/releases/download/v0.1.1/SHA256SUMS
+	source = SHA256SUMS::https://github.com/RakhaYandra/mamori/releases/download/v0.1.2/SHA256SUMS
 	sha256sums = SKIP
-	source_x86_64 = mamori-linux-amd64::https://github.com/RakhaYandra/mamori/releases/download/v0.1.1/mamori-linux-amd64
-	sha256sums_x86_64 = 00235e655e38604a1905f5c3393e7b1c6670e3fd1da531fe01a2243322e357e8
-	source_aarch64 = mamori-linux-arm64::https://github.com/RakhaYandra/mamori/releases/download/v0.1.1/mamori-linux-arm64
-	sha256sums_aarch64 = 6c8dc9c75763429901efb5808a296e6badcf07ea7bf11f3031ab31cc01a8f4f0
+	source_x86_64 = mamori-linux-amd64::https://github.com/RakhaYandra/mamori/releases/download/v0.1.2/mamori-linux-amd64
+	sha256sums_x86_64 = 8dd0ef92d174c3fe57260787ddd78fedc7ec320b1970532f546d710fe8c93078
+	source_aarch64 = mamori-linux-arm64::https://github.com/RakhaYandra/mamori/releases/download/v0.1.2/mamori-linux-arm64
+	sha256sums_aarch64 = 4d526101b9709ac92b926152848af60a8b8731e39f34284a9af6fc20c6f3a5bd
 
 pkgname = mamori-bin
