@@ -4,7 +4,7 @@ Read-only, local-first security hygiene for Linux developer machines:
 secret hints, Git exposure, file permissions, SSH config. No network,
 no raw secrets in output.
 
-> Status: **v0.1 bootstrap** — CLI skeleton + config. Scanners land in P1.
+> Status: **P1 core** — `audit`/`secrets`/`permissions` jalan (secret patterns + entropy gate, permission audit, terminal/JSON report, exit codes). `ssh`/`git`/`report` masih stub (P1-integration).
 
 ## Requirements
 
