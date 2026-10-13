@@ -35,22 +35,22 @@ type secretPattern struct {
 var secretPatterns = []secretPattern{
 	{
 		ruleID: "secret.api-key", sev: audit.SeverityHigh,
-		re: regexp.MustCompile(`\b(sk_live_[A-Za-z0-9]+|sk_test_[A-Za-z0-9]+|xox[bap]-[A-Za-z0-9-]+|AIza[A-Za-z0-9_-]{10,}|ghp_[A-Za-z0-9]{8,}|github_pat_[A-Za-z0-9_]{8,}|AKIA[0-9A-Z]{16})\b`),
+		re:   regexp.MustCompile(`\b(sk_live_[A-Za-z0-9]+|sk_test_[A-Za-z0-9]+|xox[bap]-[A-Za-z0-9-]+|AIza[A-Za-z0-9_-]{10,}|ghp_[A-Za-z0-9]{8,}|github_pat_[A-Za-z0-9_]{8,}|AKIA[0-9A-Z]{16})\b`),
 		mask: true, rec: "Move the credential to a secure secret store and rotate it.",
 	},
 	{
 		ruleID: "secret.db-conn", sev: audit.SeverityHigh,
-		re: regexp.MustCompile(`(?i)\b(postgres(ql)?|mysql|mongodb(\+srv)?)://[^\s'"]+`),
+		re:   regexp.MustCompile(`(?i)\b(postgres(ql)?|mysql|mongodb(\+srv)?)://[^\s'"]+`),
 		mask: false, rec: "Move the connection string out of source and rotate credentials.",
 	},
 	{
 		ruleID: "secret.pem-key", sev: audit.SeverityHigh,
-		re:     regexp.MustCompile(`-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----`),
-		mask:   false, rec: "Keep private keys out of repositories; restrict file permissions.",
+		re:   regexp.MustCompile(`-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----`),
+		mask: false, rec: "Keep private keys out of repositories; restrict file permissions.",
 	},
 	{
 		ruleID: "secret.generic-assignment", sev: audit.SeverityMedium,
-		re: regexp.MustCompile(`(?i)\b(api[_-]?key|password|passwd|secret|token)\s*[:=]\s*['"]?([A-Za-z0-9_.\-/+]{8,})['"]?`),
+		re:   regexp.MustCompile(`(?i)\b(api[_-]?key|password|passwd|secret|token)\s*[:=]\s*['"]?([A-Za-z0-9_.\-/+]{8,})['"]?`),
 		mask: true, rec: "Move the value to a secure secret store and rotate it.",
 	},
 }
@@ -121,7 +121,7 @@ func ScanSecrets(files []File, maxBytes int64) ([]SecretHit, []error) {
 				break
 			}
 			if err != nil {
-			partial = append(partial, err)
+				partial = append(partial, err)
 				break
 			}
 		}

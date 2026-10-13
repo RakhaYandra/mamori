@@ -4,8 +4,16 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
+	"github.com/RakhaYandra/mamori/internal/audit"
+	"github.com/RakhaYandra/mamori/internal/auditor"
+	"github.com/RakhaYandra/mamori/internal/config"
+	"github.com/RakhaYandra/mamori/internal/report"
+	"github.com/RakhaYandra/mamori/internal/rules"
+	"github.com/RakhaYandra/mamori/internal/scanner"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 var version = "v0.1.0-dev"
@@ -59,14 +67,128 @@ no network, no raw secrets in output.`,
 	return root
 }
 
+// rulesPath locates bundled rules: beside the repo (dev), cwd, or user config.
+func rulesPath() string {
+	if exe, err := os.Executable(); err == nil {
+		if d, err := rules.LoadDir(filepath.Join(filepath.Dir(exe), "..", "rules")); err == nil && len(d) > 0 {
+			return filepath.Join(filepath.Dir(exe), "..", "rules")
+		}
+	}
+	if _, err := os.Stat("rules"); err == nil {
+		return "rules"
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		if _, err := os.Stat(filepath.Join(home, ".config", "mamori", "rules")); err == nil {
+			return filepath.Join(home, ".config", "mamori", "rules")
+		}
+	}
+	return "rules"
+}
+
+func loadTitles() map[string]string {
+	titles := map[string]string{}
+	rs, err := rules.LoadDir(rulesPath())
+	if err != nil {
+		return titles
+	}
+	for _, r := range rs {
+		titles[r.ID] = r.Title
+	}
+	return titles
+}
+
+type categoryFilter string
+
+const (
+	catAll         categoryFilter = ""
+	catSecret      categoryFilter = "secret"
+	catPermissions categoryFilter = "permissions"
+)
+
+func runAudit(cmd *cobra.Command, target string, only categoryFilter) int {
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		fmt.Fprintf(cmd.ErrOrStderr(), "config: %v\n", err)
+		return 2
+	}
+	maxBytes, err := scanner.ParseSize(cfg.Scan.MaxFileSize)
+	if err != nil {
+		fmt.Fprintf(cmd.ErrOrStderr(), "config: %v\n", err)
+		return 2
+	}
+	var min audit.Severity
+	if severity != "" {
+		min, err = audit.ParseSeverity(severity)
+		if err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "severity: %v\n", err)
+			return 2
+		}
+	}
+	if format != "terminal" && format != "json" {
+		fmt.Fprintf(cmd.ErrOrStderr(), "format: want terminal|json\n")
+		return 2
+	}
+	res, err := auditor.Run(auditor.Options{
+		Target:         target,
+		Titles:         loadTitles(),
+		MinSeverity:    min,
+		Excludes:       append(append([]string{}, cfg.Exclude.Paths...), excludes...),
+		MaxBytes:       maxBytes,
+		IncludeHomeSSH: true,
+	})
+	if err != nil {
+		fmt.Fprintf(cmd.ErrOrStderr(), "audit: %v\n", err)
+		return 3
+	}
+	if only != catAll {
+		kept := res.Findings[:0]
+		for _, f := range res.Findings {
+			if f.Category == string(only) {
+				kept = append(kept, f)
+			}
+		}
+		res.Findings = kept
+	}
+	out := cmd.OutOrStdout()
+	if format == "json" {
+		if err := report.RenderJSON(out, res.Target, res.Findings); err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "report: %v\n", err)
+			return 3
+		}
+	} else if err := report.RenderTerminal(out, res.Target, res.Findings, quiet); err != nil {
+		fmt.Fprintf(cmd.ErrOrStderr(), "report: %v\n", err)
+		return 3
+	}
+	if verbose {
+		fmt.Fprintf(out, "\nskipped %d paths, %d partial errors\n", len(res.Skipped), len(res.Partial))
+		for _, perr := range res.Partial {
+			fmt.Fprintf(out, "partial: %v\n", perr)
+		}
+	}
+	return auditor.ExitCode(res)
+}
+
+func exitWith(cmd *cobra.Command, code int) error {
+	if code != 0 {
+		os.Exit(code)
+	}
+	return nil
+}
+
+func firstArg(args []string) string {
+	if len(args) > 0 {
+		return args[0]
+	}
+	return "."
+}
+
 func auditCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "audit [path]",
 		Short: "Run the full local audit",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(cmd.OutOrStdout(), "mamori audit: not implemented yet (P1)")
-			return nil
+			return exitWith(cmd, runAudit(cmd, firstArg(args), catAll))
 		},
 	}
 }
@@ -77,12 +199,11 @@ func secretsCmd() *cobra.Command {
 		Short: "Scan for possible secret exposure",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(cmd.OutOrStdout(), "mamori secrets: not implemented yet (P1)")
-			return nil
+			return exitWith(cmd, runAudit(cmd, firstArg(args), catSecret))
 		},
 	}
-	c.Flags().Bool("history", false, "include Git history")
-	c.Flags().Bool("staged", false, "scan staged files only")
+	c.Flags().Bool("history", false, "include Git history (P1-integration)")
+	c.Flags().Bool("staged", false, "scan staged files only (P1-integration)")
 	return c
 }
 
@@ -92,8 +213,7 @@ func permissionsCmd() *cobra.Command {
 		Short: "Check permissions and ownership of sensitive files",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(cmd.OutOrStdout(), "mamori permissions: not implemented yet (P1)")
-			return nil
+			return exitWith(cmd, runAudit(cmd, firstArg(args), catPermissions))
 		},
 	}
 }
@@ -104,7 +224,7 @@ func sshCmd() *cobra.Command {
 		Short: "Audit local SSH client configuration",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(cmd.OutOrStdout(), "mamori ssh: not implemented yet (P1)")
+			fmt.Fprintln(cmd.OutOrStdout(), "mamori ssh: not implemented yet (P1-integration)")
 			return nil
 		},
 	}
@@ -118,7 +238,7 @@ func gitCmd() *cobra.Command {
 		Short: "Audit sensitive files tracked by Git",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(cmd.OutOrStdout(), "mamori git: not implemented yet (P1)")
+			fmt.Fprintln(cmd.OutOrStdout(), "mamori git: not implemented yet (P1-integration)")
 			return nil
 		},
 	}
@@ -133,25 +253,32 @@ func reportCmd() *cobra.Command {
 		Short: "Show or export the last audit report",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(cmd.OutOrStdout(), "mamori report: not implemented yet (P1)")
+			fmt.Fprintln(cmd.OutOrStdout(), "mamori report: not implemented yet (P1-integration)")
 			return nil
 		},
 	}
 }
 
 func rulesCmd() *cobra.Command {
-	rules := &cobra.Command{
+	rulesCmd := &cobra.Command{
 		Use:   "rules",
 		Short: "Inspect audit rules",
 		Args:  cobra.NoArgs,
 	}
-	rules.AddCommand(
+	rulesCmd.AddCommand(
 		&cobra.Command{
 			Use:   "list",
 			Short: "List available rules",
 			Args:  cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
-				fmt.Fprintln(cmd.OutOrStdout(), "mamori rules list: not implemented yet (P1)")
+				rs, err := rules.LoadDir(rulesPath())
+				if err != nil {
+					fmt.Fprintf(cmd.ErrOrStderr(), "rules: %v\n", err)
+					return nil
+				}
+				for _, r := range rules.Enabled(rs) {
+					fmt.Fprintf(cmd.OutOrStdout(), "%-28s %-8s %s\n", r.ID, r.Severity, r.Title)
+				}
 				return nil
 			},
 		},
@@ -160,12 +287,23 @@ func rulesCmd() *cobra.Command {
 			Short: "Explain a specific rule",
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				fmt.Fprintln(cmd.OutOrStdout(), "mamori rules explain: not implemented yet (P1)")
+				rs, err := rules.LoadDir(rulesPath())
+				if err != nil {
+					fmt.Fprintf(cmd.ErrOrStderr(), "rules: %v\n", err)
+					return nil
+				}
+				r, ok := rules.ByID(rs, args[0])
+				if !ok {
+					fmt.Fprintf(cmd.ErrOrStderr(), "unknown rule %q\n", args[0])
+					return nil
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "Rule: %s\nSeverity: %s\n\n%s\n\nRecommended action:\n%s\n",
+					r.ID, r.Severity, r.Title, r.Recommendation)
 				return nil
 			},
 		},
 	)
-	return rules
+	return rulesCmd
 }
 
 func configCmd() *cobra.Command {
@@ -180,7 +318,27 @@ func configCmd() *cobra.Command {
 			Short: "Write the default configuration",
 			Args:  cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
-				fmt.Fprintln(cmd.OutOrStdout(), "mamori config init: not implemented yet (P1)")
+				home, err := os.UserHomeDir()
+				if err != nil {
+					fmt.Fprintf(cmd.ErrOrStderr(), "config init: %v\n", err)
+					return nil
+				}
+				dir := filepath.Join(home, ".config", "mamori")
+				if err := os.MkdirAll(dir, 0o755); err != nil {
+					fmt.Fprintf(cmd.ErrOrStderr(), "config init: %v\n", err)
+					return nil
+				}
+				raw, err := yaml.Marshal(config.Default())
+				if err != nil {
+					fmt.Fprintf(cmd.ErrOrStderr(), "config init: %v\n", err)
+					return nil
+				}
+				p := filepath.Join(dir, "config.yaml")
+				if err := os.WriteFile(p, raw, 0o600); err != nil {
+					fmt.Fprintf(cmd.ErrOrStderr(), "config init: %v\n", err)
+					return nil
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "wrote %s\n", p)
 				return nil
 			},
 		},
