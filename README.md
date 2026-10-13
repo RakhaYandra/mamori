@@ -30,7 +30,8 @@ verify with `SHA256SUMS`) and put it on `PATH`.
 `audit` · `secrets` · `permissions` · `ssh` · `git` · `report` ·
 `rules list|explain` · `config init` · `hook install` · `version`
 
-Global flags: `--config --severity --format --exclude --no-color --quiet --verbose`.
+Global flags: `--config --severity --format --exclude --no-color --quiet --verbose`
+(`--format terminal|json|sarif`).
 `audit`/`secrets`/`git` add `--history --limit`; `audit` adds
 `--baseline PATH --update-baseline`.
 
@@ -71,6 +72,17 @@ The file stores fingerprints (hashes), never evidence or secrets.
 
 Blocks commits when staged secrets are found. Bypass only with explicit
 `git commit --no-verify`.
+
+## CI (SARIF)
+
+```bash
+./bin/mamori audit . --format sarif > results.sarif
+```
+
+Upload to GitHub code scanning (see `.github/workflows/mamori.yml`).
+SARIF carries rule IDs, titles, and relative paths only — never evidence
+fragments. Severity maps to `error` (high/critical), `warning` (medium),
+`note` (low/info).
 
 ## Limitations
 
