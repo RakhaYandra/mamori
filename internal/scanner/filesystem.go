@@ -134,7 +134,7 @@ func IsBinary(p string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	buf := make([]byte, 8192)
 	n, err := f.Read(buf)
 	if err != nil && n == 0 {

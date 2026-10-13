@@ -33,7 +33,7 @@ func ParseFile(path string) ([]directive, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer fh.Close()
+	defer func() { _ = fh.Close() }()
 	var out []directive
 	scope := "global"
 	sc := bufio.NewScanner(fh)
