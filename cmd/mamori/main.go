@@ -136,11 +136,13 @@ const (
 )
 
 var (
-	histFlag    bool
-	histLimit   int
-	stagedFlag  bool
-	trackedFlag bool
-	sshCfgFlag  string
+	histFlag       bool
+	histLimit      int
+	stagedFlag     bool
+	trackedFlag    bool
+	sshCfgFlag     string
+	baselinePath   string
+	updateBaseline bool
 )
 
 func runAudit(cmd *cobra.Command, target string, only categoryFilter) int {
@@ -167,14 +169,16 @@ func runAudit(cmd *cobra.Command, target string, only categoryFilter) int {
 		return 2
 	}
 	opts := auditor.Options{
-		Target:        target,
-		Titles:        loadTitles(),
-		MinSeverity:   min,
-		Excludes:      append(append([]string{}, cfg.Exclude.Paths...), excludes...),
-		MaxBytes:      maxBytes,
-		IncludeSSH:    only == catAll || only == catSSH,
-		SSHConfigPath: sshCfgFlag,
-		Custom:        loadCustom(),
+		Target:         target,
+		Titles:         loadTitles(),
+		MinSeverity:    min,
+		Excludes:       append(append([]string{}, cfg.Exclude.Paths...), excludes...),
+		MaxBytes:       maxBytes,
+		IncludeSSH:     only == catAll || only == catSSH,
+		SSHConfigPath:  sshCfgFlag,
+		Custom:         loadCustom(),
+		BaselinePath:   baselinePath,
+		UpdateBaseline: updateBaseline,
 	}
 	if histFlag {
 		opts.HistoryLimit = histLimit
@@ -254,6 +258,8 @@ func auditCmd() *cobra.Command {
 	}
 	c.Flags().BoolVar(&histFlag, "history", false, "include Git history")
 	c.Flags().IntVar(&histLimit, "limit", 100, "max commits for history scan")
+	c.Flags().StringVar(&baselinePath, "baseline", "", "baseline file hiding known findings")
+	c.Flags().BoolVar(&updateBaseline, "update-baseline", false, "rewrite baseline from current findings")
 	return c
 }
 

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/RakhaYandra/mamori/internal/audit"
+	"github.com/RakhaYandra/mamori/internal/baseline"
 	"github.com/RakhaYandra/mamori/internal/gitinspect"
 	"github.com/RakhaYandra/mamori/internal/rules"
 	"github.com/RakhaYandra/mamori/internal/scanner"
@@ -30,6 +31,10 @@ type Options struct {
 	// Files restricts the scan to explicit paths (e.g. staged files),
 	// skipping the directory walk when set.
 	Files []string
+	// BaselinePath points at a .mamori-baseline file; matching findings
+	// are hidden. UpdateBaseline rewrites it from the current findings.
+	BaselinePath   string
+	UpdateBaseline bool
 	// SSHConfigPath overrides ~/.ssh/config (empty = default).
 	SSHConfigPath string
 }
@@ -176,6 +181,17 @@ func Run(opts Options) (Result, error) {
 		}
 	}
 
+	if opts.UpdateBaseline && opts.BaselinePath != "" {
+		if berr := baseline.Update(opts.BaselinePath, res.Findings, ""); berr != nil {
+			res.Partial = append(res.Partial, berr)
+		}
+	} else if opts.BaselinePath != "" {
+		if bl, berr := baseline.Load(opts.BaselinePath); berr != nil {
+			res.Partial = append(res.Partial, berr)
+		} else {
+			res.Findings = bl.Suppress(res.Findings)
+		}
+	}
 	if opts.MinSeverity != "" {
 		min := opts.MinSeverity
 		kept := res.Findings[:0]
