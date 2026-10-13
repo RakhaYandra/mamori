@@ -11,6 +11,7 @@ import (
 
 	"github.com/RakhaYandra/mamori/internal/audit"
 	"github.com/RakhaYandra/mamori/internal/redact"
+	"github.com/RakhaYandra/mamori/internal/rules"
 )
 
 // SecretHit is one redacted secret detection. Masked never holds raw values.
@@ -88,6 +89,11 @@ func isPlaceholder(v string) bool {
 // ScanSecrets scans files line by line, bounded by maxBytes per file.
 // Raw values never leave this function; hits carry masked evidence only.
 func ScanSecrets(files []File, maxBytes int64) ([]SecretHit, []error) {
+	return ScanSecretsWith(files, maxBytes, nil)
+}
+
+// ScanSecretsWith adds user-supplied custom patterns to the scan.
+func ScanSecretsWith(files []File, maxBytes int64, custom []rules.CustomRule) ([]SecretHit, []error) {
 	var hits []SecretHit
 	var partial []error
 	for _, f := range files {
@@ -114,6 +120,7 @@ func ScanSecrets(files []File, maxBytes int64) ([]SecretHit, []error) {
 			line++
 			read += int64(len(s))
 			checkLine(f, line, s, &hits)
+			checkCustom(f, line, s, custom, &hits)
 			if maxBytes > 0 && read >= maxBytes {
 				break
 			}
@@ -169,4 +176,23 @@ func checkLine(f File, line int, s string, hits *[]SecretHit) {
 		File: f, Line: line, RuleID: ruleID, Category: "secret",
 		Severity: sev, Masked: masked, Recommendation: rec,
 	})
+}
+
+// checkCustom applies user patterns with the same entropy and placeholder
+// gates as bundled patterns. Evidence is masked at match time.
+func checkCustom(f File, line int, s string, custom []rules.CustomRule, hits *[]SecretHit) {
+	for _, c := range custom {
+		if !c.Enabled || c.Compiled == nil {
+			continue
+		}
+		token := c.Compiled.FindString(s)
+		if token == "" || isPlaceholder(token) || entropy(token) < 3.0 {
+			continue
+		}
+		sev, _ := audit.ParseSeverity(c.Severity)
+		*hits = append(*hits, SecretHit{
+			File: f, Line: line, RuleID: c.ID, Category: "secret",
+			Severity: sev, Masked: redact.MaskValue(token), Recommendation: c.Recommendation,
+		})
+	}
 }

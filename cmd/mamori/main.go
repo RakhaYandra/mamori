@@ -96,7 +96,33 @@ func loadTitles() map[string]string {
 	for _, r := range rs {
 		titles[r.ID] = r.Title
 	}
+	if home, err := os.UserHomeDir(); err == nil {
+		if cs, cerr := rules.LoadCustomDir(filepath.Join(home, ".config", "mamori", "rules")); cerr == nil {
+			for _, r := range cs {
+				titles[r.ID] = r.Title
+			}
+		}
+	}
 	return titles
+}
+
+func loadCustom() []rules.CustomRule {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+	cs, err := rules.LoadCustomDir(filepath.Join(home, ".config", "mamori", "rules"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "custom rules: %v\n", err)
+		return nil
+	}
+	var out []rules.CustomRule
+	for _, c := range cs {
+		if c.Enabled {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 type categoryFilter string
@@ -148,6 +174,7 @@ func runAudit(cmd *cobra.Command, target string, only categoryFilter) int {
 		MaxBytes:      maxBytes,
 		IncludeSSH:    only == catAll || only == catSSH,
 		SSHConfigPath: sshCfgFlag,
+		Custom:        loadCustom(),
 	}
 	if histFlag {
 		opts.HistoryLimit = histLimit

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/RakhaYandra/mamori/internal/rules"
 )
 
 const synthKey = "sk_live_9f2Kq7ZmX4vB8tYw6s7f2a"
@@ -91,5 +93,35 @@ func TestSkipsBinary(t *testing.T) {
 	}
 	if hits := scanRoot(t, root); len(hits) != 0 {
 		t.Fatalf("binary must be skipped: %+v", hits)
+	}
+}
+
+func writeCustomRules(t *testing.T) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "custom.yaml")
+	body := "- id: custom.internal-token\n  title: T\n  severity: high\n  category: secret\n  pattern: 'INT-[A-Za-z0-9]{16}'\n  recommendation: R.\n  enabled: true\n"
+	if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestCustomPatternFires(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "a.go", "token INT-abcdefgh12345678 here\n")
+	res, err := Walk(root, WalkOptions{MaxBytes: 1 << 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	custom, err := rules.LoadCustomFile(writeCustomRules(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hits, _ := ScanSecretsWith(res.Files, 1<<20, custom)
+	if len(hits) != 1 || hits[0].RuleID != "custom.internal-token" {
+		t.Fatalf("hits: %+v", hits)
+	}
+	if !strings.HasSuffix(hits[0].Masked, "5678") {
+		t.Fatalf("masked evidence: %q", hits[0].Masked)
 	}
 }

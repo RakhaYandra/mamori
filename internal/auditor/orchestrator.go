@@ -7,6 +7,7 @@ import (
 
 	"github.com/RakhaYandra/mamori/internal/audit"
 	"github.com/RakhaYandra/mamori/internal/gitinspect"
+	"github.com/RakhaYandra/mamori/internal/rules"
 	"github.com/RakhaYandra/mamori/internal/scanner"
 	"github.com/RakhaYandra/mamori/internal/sshaudit"
 )
@@ -24,6 +25,8 @@ type Options struct {
 	HistoryLimit int
 	// IncludeSSH audits the SSH client config and ~/.ssh directory.
 	IncludeSSH bool
+	// Custom adds user-supplied secret patterns to the scan.
+	Custom []rules.CustomRule
 	// Files restricts the scan to explicit paths (e.g. staged files),
 	// skipping the directory walk when set.
 	Files []string
@@ -95,7 +98,7 @@ func Run(opts Options) (Result, error) {
 	res := Result{Target: opts.Target, Skipped: walked.Skipped}
 	res.Partial = append(res.Partial, walked.Partial...)
 
-	hits, perr := scanner.ScanSecrets(walked.Files, opts.MaxBytes)
+	hits, perr := scanner.ScanSecretsWith(walked.Files, opts.MaxBytes, opts.Custom)
 	res.Partial = append(res.Partial, perr...)
 	for _, h := range hits {
 		f := audit.NewFinding(h.RuleID, h.Category, h.Severity, titleOf(opts.Titles, h.RuleID),
