@@ -1,0 +1,19 @@
+pkgbase = mamori-bin
+	pkgdesc = Local-first Linux security auditor: secrets, Git exposure, permissions, SSH
+	pkgver = 0.1.1
+	pkgrel = 1
+	url = https://github.com/RakhaYandra/mamori
+	arch = x86_64
+	arch = aarch64
+	license = MIT
+	optdepends = git: Git inspection and pre-commit hook
+	provides = mamori
+	conflicts = mamori
+	source = SHA256SUMS::https://github.com/RakhaYandra/mamori/releases/download/v0.1.1/SHA256SUMS
+	sha256sums = SKIP
+	source_x86_64 = mamori-linux-amd64::https://github.com/RakhaYandra/mamori/releases/download/v0.1.1/mamori-linux-amd64
+	sha256sums_x86_64 = 00235e655e38604a1905f5c3393e7b1c6670e3fd1da531fe01a2243322e357e8
+	source_aarch64 = mamori-linux-arm64::https://github.com/RakhaYandra/mamori/releases/download/v0.1.1/mamori-linux-arm64
+	sha256sums_aarch64 = 6c8dc9c75763429901efb5808a296e6badcf07ea7bf11f3031ab31cc01a8f4f0
+
+pkgname = mamori-bin
