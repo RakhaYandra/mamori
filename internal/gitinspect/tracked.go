@@ -41,6 +41,30 @@ func isEnvName(base string) bool {
 	return base == ".env" || strings.HasPrefix(base, ".env.")
 }
 
+// StagedFiles lists absolute paths of files staged in the index.
+// Outside a repo it returns an empty list.
+func StagedFiles(path string) ([]string, error) {
+	if !IsRepo(path) {
+		return nil, nil
+	}
+	top, err := runGit(path, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return nil, err
+	}
+	top = strings.TrimSpace(top)
+	out, err := runGit(path, "diff", "--cached", "--name-only")
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, f := range strings.Split(out, "\n") {
+		if f = strings.TrimSpace(f); f != "" {
+			files = append(files, filepath.Join(top, f))
+		}
+	}
+	return files, nil
+}
+
 func isKeyName(base string) bool {
 	if strings.HasSuffix(base, ".pem") || strings.HasSuffix(base, ".key") {
 		return true

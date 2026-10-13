@@ -3,9 +3,12 @@ package auditor
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/RakhaYandra/mamori/internal/audit"
+	"github.com/RakhaYandra/mamori/internal/gitinspect"
 	"github.com/RakhaYandra/mamori/internal/scanner"
+	"github.com/RakhaYandra/mamori/internal/sshaudit"
 )
 
 // Options scopes one audit run.
@@ -17,9 +20,15 @@ type Options struct {
 	Excludes    []string
 	Quiet       bool
 	MaxBytes    int64
-	// IncludeHomeSSH also checks ~/.ssh even when outside Target.
-	// Off in tests to avoid touching the real home directory.
-	IncludeHomeSSH bool
+	// HistoryLimit > 0 enables Git history scan (commits to inspect).
+	HistoryLimit int
+	// IncludeSSH audits the SSH client config and ~/.ssh directory.
+	IncludeSSH bool
+	// Files restricts the scan to explicit paths (e.g. staged files),
+	// skipping the directory walk when set.
+	Files []string
+	// SSHConfigPath overrides ~/.ssh/config (empty = default).
+	SSHConfigPath string
 }
 
 // Result is one completed audit.
@@ -54,13 +63,34 @@ func Run(opts Options) (Result, error) {
 	if opts.Target == "" {
 		opts.Target = "."
 	}
-	walked, err := scanner.Walk(opts.Target, scanner.WalkOptions{
-		MaxBytes:   opts.MaxBytes,
-		ScanHidden: true,
-		Excludes:   opts.Excludes,
-	})
-	if err != nil {
-		return Result{}, err
+	var walked scanner.WalkResult
+	if len(opts.Files) > 0 {
+		for _, p := range opts.Files {
+			fi, err := os.Lstat(p)
+			if err != nil || !fi.Mode().IsRegular() {
+				continue
+			}
+			bin, berr := scanner.IsBinary(p)
+			if berr != nil {
+				walked.Partial = append(walked.Partial, fmt.Errorf("%s: %w", p, berr))
+				continue
+			}
+			if opts.MaxBytes > 0 && fi.Size() > opts.MaxBytes {
+				walked.Skipped = append(walked.Skipped, p)
+				continue
+			}
+			walked.Files = append(walked.Files, scanner.File{Path: p, Size: fi.Size(), Binary: bin})
+		}
+	} else {
+		var err error
+		walked, err = scanner.Walk(opts.Target, scanner.WalkOptions{
+			MaxBytes:   opts.MaxBytes,
+			ScanHidden: true,
+			Excludes:   opts.Excludes,
+		})
+		if err != nil {
+			return Result{}, err
+		}
 	}
 	res := Result{Target: opts.Target, Skipped: walked.Skipped}
 	res.Partial = append(res.Partial, walked.Partial...)
@@ -82,10 +112,58 @@ func Run(opts Options) (Result, error) {
 		res.Findings = append(res.Findings, f)
 	}
 
-	// The ~/.ssh directory is outside most targets; check it when asked.
-	if opts.IncludeHomeSSH {
-		if home, herr := os.UserHomeDir(); herr == nil {
-			if dh, derr := scanner.CheckPath(home + "/.ssh"); derr == nil {
+	// Git exposure: tracked/staged sensitive files plus capped history.
+	// (ruleID, base name) pairs already found in the work tree are not
+	// repeated as history-only.
+	worktree := map[string]bool{}
+	for _, f := range res.Findings {
+		worktree[f.RuleID+"\x00"+filepath.Base(f.Path)] = true
+	}
+	if ghits, gerr := gitinspect.TrackedSensitive(opts.Target); gerr == nil {
+		for _, h := range ghits {
+			ev := "State: " + h.State
+			res.Findings = append(res.Findings, audit.NewFinding(h.RuleID, "git",
+				h.Severity, titleOf(opts.Titles, h.RuleID),
+				filepath.Join(h.Repo, h.File), 0, ev, h.Recommendation))
+		}
+	} else {
+		res.Partial = append(res.Partial, gerr)
+	}
+	if opts.HistoryLimit > 0 {
+		if hhits, herr := gitinspect.ScanHistory(opts.Target, opts.HistoryLimit, opts.MaxBytes); herr == nil {
+			for _, h := range hhits {
+				if worktree[h.RuleID+"\x00"+filepath.Base(h.File)] {
+					continue
+				}
+				ev := "State: history-only"
+				if h.Masked != "" {
+					ev += " Value: " + h.Masked
+				}
+				res.Findings = append(res.Findings, audit.NewFinding(h.RuleID, "git",
+					h.Severity, titleOf(opts.Titles, h.RuleID),
+					filepath.Join(h.Repo, h.File), 0, ev, h.Recommendation))
+			}
+		} else {
+			res.Partial = append(res.Partial, herr)
+		}
+	}
+
+	// SSH client config plus ~/.ssh directory permissions.
+	if opts.IncludeSSH {
+		home, herr := os.UserHomeDir()
+		cfgPath := opts.SSHConfigPath
+		if cfgPath == "" && herr == nil {
+			cfgPath = filepath.Join(home, ".ssh", "config")
+		}
+		if shits, serr := sshaudit.AuditFile(cfgPath); serr == nil {
+			for _, h := range shits {
+				ev := "Scope: " + h.Scope
+				res.Findings = append(res.Findings, audit.NewFinding(h.RuleID, "ssh",
+					h.Severity, titleOf(opts.Titles, h.RuleID), h.File, 0, ev, h.Recommendation))
+			}
+		}
+		if herr == nil {
+			if dh, derr := scanner.CheckPath(filepath.Join(home, ".ssh")); derr == nil {
 				for _, h := range dh {
 					ev := fmt.Sprintf("Mode: %04o Expected: %s", h.Mode.Perm(), h.Expected)
 					res.Findings = append(res.Findings, audit.NewFinding(h.RuleID, h.Category,

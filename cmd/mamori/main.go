@@ -9,11 +9,13 @@ import (
 	"github.com/RakhaYandra/mamori/internal/audit"
 	"github.com/RakhaYandra/mamori/internal/auditor"
 	"github.com/RakhaYandra/mamori/internal/config"
+	"github.com/RakhaYandra/mamori/internal/gitinspect"
 	"github.com/RakhaYandra/mamori/internal/report"
 	"github.com/RakhaYandra/mamori/internal/rules"
 	"github.com/RakhaYandra/mamori/internal/scanner"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
+	"strings"
 )
 
 var version = "v0.1.0-dev"
@@ -103,6 +105,16 @@ const (
 	catAll         categoryFilter = ""
 	catSecret      categoryFilter = "secret"
 	catPermissions categoryFilter = "permissions"
+	catGit         categoryFilter = "git"
+	catSSH         categoryFilter = "ssh"
+)
+
+var (
+	histFlag    bool
+	histLimit   int
+	stagedFlag  bool
+	trackedFlag bool
+	sshCfgFlag  string
 )
 
 func runAudit(cmd *cobra.Command, target string, only categoryFilter) int {
@@ -128,14 +140,27 @@ func runAudit(cmd *cobra.Command, target string, only categoryFilter) int {
 		fmt.Fprintf(cmd.ErrOrStderr(), "format: want terminal|json\n")
 		return 2
 	}
-	res, err := auditor.Run(auditor.Options{
-		Target:         target,
-		Titles:         loadTitles(),
-		MinSeverity:    min,
-		Excludes:       append(append([]string{}, cfg.Exclude.Paths...), excludes...),
-		MaxBytes:       maxBytes,
-		IncludeHomeSSH: true,
-	})
+	opts := auditor.Options{
+		Target:        target,
+		Titles:        loadTitles(),
+		MinSeverity:   min,
+		Excludes:      append(append([]string{}, cfg.Exclude.Paths...), excludes...),
+		MaxBytes:      maxBytes,
+		IncludeSSH:    only == catAll || only == catSSH,
+		SSHConfigPath: sshCfgFlag,
+	}
+	if histFlag {
+		opts.HistoryLimit = histLimit
+	}
+	if stagedFlag && only == catSecret {
+		files, gerr := gitinspect.StagedFiles(target)
+		if gerr != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "git: %v\n", gerr)
+			return 3
+		}
+		opts.Files = files
+	}
+	res, err := auditor.Run(opts)
 	if err != nil {
 		fmt.Fprintf(cmd.ErrOrStderr(), "audit: %v\n", err)
 		return 3
@@ -143,9 +168,18 @@ func runAudit(cmd *cobra.Command, target string, only categoryFilter) int {
 	if only != catAll {
 		kept := res.Findings[:0]
 		for _, f := range res.Findings {
-			if f.Category == string(only) {
-				kept = append(kept, f)
+			if f.Category != string(only) {
+				continue
 			}
+			if only == catGit {
+				if stagedFlag && !strings.Contains(f.Evidence, "State: staged") {
+					continue
+				}
+				if trackedFlag && !strings.Contains(f.Evidence, "State: tracked") {
+					continue
+				}
+			}
+			kept = append(kept, f)
 		}
 		res.Findings = kept
 	}
@@ -183,7 +217,7 @@ func firstArg(args []string) string {
 }
 
 func auditCmd() *cobra.Command {
-	return &cobra.Command{
+	c := &cobra.Command{
 		Use:   "audit [path]",
 		Short: "Run the full local audit",
 		Args:  cobra.MaximumNArgs(1),
@@ -191,6 +225,9 @@ func auditCmd() *cobra.Command {
 			return exitWith(cmd, runAudit(cmd, firstArg(args), catAll))
 		},
 	}
+	c.Flags().BoolVar(&histFlag, "history", false, "include Git history")
+	c.Flags().IntVar(&histLimit, "limit", 100, "max commits for history scan")
+	return c
 }
 
 func secretsCmd() *cobra.Command {
@@ -202,8 +239,9 @@ func secretsCmd() *cobra.Command {
 			return exitWith(cmd, runAudit(cmd, firstArg(args), catSecret))
 		},
 	}
-	c.Flags().Bool("history", false, "include Git history (P1-integration)")
-	c.Flags().Bool("staged", false, "scan staged files only (P1-integration)")
+	c.Flags().BoolVar(&histFlag, "history", false, "include Git history")
+	c.Flags().IntVar(&histLimit, "limit", 100, "max commits for history scan")
+	c.Flags().BoolVar(&stagedFlag, "staged", false, "scan staged files only")
 	return c
 }
 
@@ -224,11 +262,10 @@ func sshCmd() *cobra.Command {
 		Short: "Audit local SSH client configuration",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(cmd.OutOrStdout(), "mamori ssh: not implemented yet (P1-integration)")
-			return nil
+			return exitWith(cmd, runAudit(cmd, ".", catSSH))
 		},
 	}
-	c.Flags().String("config", "", "SSH config path (default ~/.ssh/config)")
+	c.Flags().StringVar(&sshCfgFlag, "config", "", "SSH config path (default ~/.ssh/config)")
 	return c
 }
 
@@ -238,23 +275,23 @@ func gitCmd() *cobra.Command {
 		Short: "Audit sensitive files tracked by Git",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(cmd.OutOrStdout(), "mamori git: not implemented yet (P1-integration)")
-			return nil
+			return exitWith(cmd, runAudit(cmd, firstArg(args), catGit))
 		},
 	}
-	c.Flags().Bool("staged", false, "check staged files")
-	c.Flags().Bool("tracked", false, "check tracked files")
+	c.Flags().BoolVar(&stagedFlag, "staged", false, "show staged files only")
+	c.Flags().BoolVar(&trackedFlag, "tracked", false, "show tracked files only")
+	c.Flags().BoolVar(&histFlag, "history", false, "include Git history")
+	c.Flags().IntVar(&histLimit, "limit", 100, "max commits for history scan")
 	return c
 }
 
 func reportCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "report",
-		Short: "Show or export the last audit report",
+		Short: "Re-run the audit and print the report (nothing is stored)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(cmd.OutOrStdout(), "mamori report: not implemented yet (P1-integration)")
-			return nil
+			return exitWith(cmd, runAudit(cmd, ".", catAll))
 		},
 	}
 }

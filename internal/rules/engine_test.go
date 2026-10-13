@@ -59,7 +59,7 @@ func TestBundledRulesLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(Enabled(rs)) < 8 {
+	if len(Enabled(rs)) < 17 {
 		t.Fatalf("want >=8 bundled rules, got %d", len(Enabled(rs)))
 	}
 }

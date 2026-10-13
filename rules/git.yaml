@@ -1,0 +1,12 @@
+- id: git.env-tracked
+  title: Environment file tracked by Git
+  severity: high
+  category: git
+  recommendation: Remove it from tracking and rotate exposed credentials.
+  enabled: true
+- id: git.key-tracked
+  title: Private key tracked by Git
+  severity: high
+  category: git
+  recommendation: Remove the key from the repository and rotate it.
+  enabled: true

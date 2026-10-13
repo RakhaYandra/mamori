@@ -1,0 +1,36 @@
+- id: ssh.no-host-key-check
+  title: SSH host key checking disabled
+  severity: high
+  category: ssh
+  recommendation: Re-enable host key checking unless this host is ephemeral.
+  enabled: true
+- id: ssh.forward-agent
+  title: SSH agent forwarding enabled
+  severity: medium
+  category: ssh
+  recommendation: Verify whether agent forwarding is required.
+  enabled: true
+- id: ssh.known-hosts-disabled
+  title: SSH known hosts disabled
+  severity: high
+  category: ssh
+  recommendation: Point UserKnownHostsFile at a real file.
+  enabled: true
+- id: ssh.identity-key-open
+  title: SSH identity file has open permissions
+  severity: high
+  category: ssh
+  recommendation: Review and restrict the identity file permissions.
+  enabled: true
+- id: ssh.password-auth
+  title: SSH password authentication enabled
+  severity: medium
+  category: ssh
+  recommendation: Prefer key authentication for SSH clients.
+  enabled: true
+- id: ssh.wildcard-broad
+  title: SSH wildcard host block with risky options
+  severity: medium
+  category: ssh
+  recommendation: Narrow the Host pattern for risky options.
+  enabled: true

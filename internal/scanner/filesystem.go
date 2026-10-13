@@ -87,7 +87,7 @@ func Walk(root string, opts WalkOptions) (WalkResult, error) {
 			res.Skipped = append(res.Skipped, p)
 			return nil
 		}
-		bin, err := isBinary(p)
+		bin, err := IsBinary(p)
 		if err != nil {
 			res.Partial = append(res.Partial, fmt.Errorf("%s: %w", p, err))
 			return nil
@@ -129,7 +129,7 @@ func isHidden(p string) bool {
 	return strings.HasPrefix(filepath.Base(p), ".")
 }
 
-func isBinary(p string) (bool, error) {
+func IsBinary(p string) (bool, error) {
 	f, err := os.Open(p)
 	if err != nil {
 		return false, err
