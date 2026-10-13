@@ -49,7 +49,7 @@ no network, no raw secrets in output.`,
 
 	root.PersistentFlags().StringVar(&cfgPath, "config", "", "config file path")
 	root.PersistentFlags().StringVar(&severity, "severity", "", "minimum severity (critical|high|medium|low|info)")
-	root.PersistentFlags().StringVar(&format, "format", "terminal", "output format (terminal|json)")
+	root.PersistentFlags().StringVar(&format, "format", "terminal", "output format (terminal|json|sarif)")
 	root.PersistentFlags().StringSliceVar(&excludes, "exclude", nil, "additional exclusion patterns")
 	root.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable colors")
 	root.PersistentFlags().BoolVar(&quiet, "quiet", false, "summary only")
@@ -166,8 +166,8 @@ func runAudit(cmd *cobra.Command, target string, only categoryFilter) int {
 			return 2
 		}
 	}
-	if format != "terminal" && format != "json" {
-		fmt.Fprintf(cmd.ErrOrStderr(), "format: want terminal|json\n")
+	if format != "terminal" && format != "json" && format != "sarif" {
+		fmt.Fprintf(cmd.ErrOrStderr(), "format: want terminal|json|sarif\n")
 		return 2
 	}
 	opts := auditor.Options{
@@ -217,14 +217,22 @@ func runAudit(cmd *cobra.Command, target string, only categoryFilter) int {
 		res.Findings = kept
 	}
 	out := cmd.OutOrStdout()
-	if format == "json" {
+	switch format {
+	case "json":
 		if err := report.RenderJSON(out, res.Target, res.Findings); err != nil {
 			fmt.Fprintf(cmd.ErrOrStderr(), "report: %v\n", err)
 			return 3
 		}
-	} else if err := report.RenderTerminal(out, res.Target, res.Findings, quiet); err != nil {
-		fmt.Fprintf(cmd.ErrOrStderr(), "report: %v\n", err)
-		return 3
+	case "sarif":
+		if err := report.RenderSARIF(out, res.Target, res.Findings, version); err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "report: %v\n", err)
+			return 3
+		}
+	case "terminal":
+		if err := report.RenderTerminal(out, res.Target, res.Findings, quiet); err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "report: %v\n", err)
+			return 3
+		}
 	}
 	if verbose {
 		fmt.Fprintf(out, "\nskipped %d paths, %d partial errors\n", len(res.Skipped), len(res.Partial))
