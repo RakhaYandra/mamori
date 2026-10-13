@@ -41,10 +41,11 @@ man: build
 check: vet test audit
 	golangci-lint run
 
-# Ban shell-execution patterns. Structured exec (os/exec arg list) only.
+# Ban shell execution: exec'ing sh/bash, -c flags, absolute shell paths,
+# os.system, eval. Plain mentions (e.g. completion shell names) are fine.
 audit:
 	@echo "== shell-execution audit =="
-	@hits=$$(grep -rn --include='*.go' -E '"sh"|"bash"|sh +-c|bash +-c|/bin/sh|/bin/bash|os\.system|eval\(' . || true); \
+	@hits=$$(grep -rn --include='*.go' -E 'exec\.Command\([^)]*"(sh|bash)"|sh +-c|bash +-c|/bin/sh|/bin/bash|os\.system|eval\(' . || true); \
 	if [ -n "$$hits" ]; then echo "$$hits"; echo "FAIL: shell execution patterns found"; exit 1; fi
 	@echo "clean: no shell execution patterns"
 
