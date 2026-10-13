@@ -1,0 +1,24 @@
+- id: perm.ssh-key-open
+  title: SSH private key is accessible by group or others
+  severity: high
+  category: permissions
+  recommendation: Review and restrict file permissions.
+  enabled: true
+- id: perm.ssh-dir-open
+  title: SSH directory permissions are too open
+  severity: medium
+  category: permissions
+  recommendation: Review and restrict directory permissions.
+  enabled: true
+- id: perm.ssh-config-writable
+  title: SSH config is writable beyond owner
+  severity: high
+  category: permissions
+  recommendation: Review and restrict file permissions.
+  enabled: true
+- id: perm.env-readable
+  title: Environment file is readable by group or others
+  severity: medium
+  category: permissions
+  recommendation: Review and restrict file permissions.
+  enabled: true
