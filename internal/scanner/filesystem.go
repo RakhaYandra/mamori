@@ -2,7 +2,9 @@
 package scanner
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -137,8 +139,12 @@ func IsBinary(p string) (bool, error) {
 	defer func() { _ = f.Close() }()
 	buf := make([]byte, 8192)
 	n, err := f.Read(buf)
-	if err != nil && n == 0 {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return false, err
+	}
+	if n == 0 {
+		// Empty file: scannable, never binary.
+		return false, nil
 	}
 	for _, b := range buf[:n] {
 		if b == 0 {

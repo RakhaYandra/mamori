@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strings"
 )
 
 // Severity of a finding.
@@ -48,6 +49,19 @@ type Finding struct {
 	Evidence       string   `json:"evidence,omitempty"`
 	Recommendation string   `json:"recommendation"`
 	Fingerprint    string   `json:"fingerprint,omitempty"`
+}
+
+// IsEnvTemplate reports whether a basename is an environment template
+// (e.g. .env.example). Templates are committed intentionally and carry no
+// real credentials by convention; name-based rules skip them while content
+// scanning still applies.
+func IsEnvTemplate(base string) bool {
+	for _, suf := range []string{".example", ".sample", ".dist", ".template"} {
+		if strings.HasSuffix(base, suf) {
+			return true
+		}
+	}
+	return false
 }
 
 // NewFinding builds a Finding with a random ID. evidence must already be

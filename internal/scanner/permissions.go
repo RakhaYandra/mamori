@@ -32,6 +32,9 @@ func isSSHKeyName(base string) bool {
 }
 
 func isEnvName(base string) bool {
+	if audit.IsEnvTemplate(base) {
+		return false
+	}
 	return base == ".env" || strings.HasPrefix(base, ".env.")
 }
 

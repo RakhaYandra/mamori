@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -64,5 +65,33 @@ func TestNonRepoIsEmpty(t *testing.T) {
 	}
 	if len(hits) != 0 {
 		t.Fatalf("want empty, got %+v", hits)
+	}
+}
+
+func TestTrackedTemplateIgnored(t *testing.T) {
+	root := mkRepo(t)
+	p := filepath.Join(root, ".env.example")
+	if err := os.WriteFile(p, []byte("PORT=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	g := func(args ...string) {
+		t.Helper()
+		c := exec.Command("git", args...)
+		c.Dir = root
+		c.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "HOME="+t.TempDir())
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	g("add", ".env.example")
+	g("commit", "-qm", "template")
+	hits, err := TrackedSensitive(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, h := range hits {
+		if strings.Contains(h.File, ".env.example") {
+			t.Fatalf("template must not fire: %+v", hits)
+		}
 	}
 }

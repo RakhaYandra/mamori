@@ -125,3 +125,26 @@ func TestCustomPatternFires(t *testing.T) {
 		t.Fatalf("masked evidence: %q", hits[0].Masked)
 	}
 }
+
+func TestEnvTemplateNameIgnoredButContentScanned(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, ".env.example", "PORT=18080\n")
+	hits := scanRoot(t, root)
+	if len(hits) != 0 {
+		t.Fatalf("template must not fire: %+v", hits)
+	}
+	writeFile(t, root, "leak.env.example", "K=\""+synthKey+"\"\n")
+	hits = scanRoot(t, root)
+	found := false
+	for _, h := range hits {
+		if h.RuleID == "secret.api-key" {
+			found = true
+		}
+		if h.RuleID == "secret.env-file" {
+			t.Fatalf("template name must not fire even with secret: %+v", hits)
+		}
+	}
+	if !found {
+		t.Fatalf("real secret in template must still fire: %+v", hits)
+	}
+}

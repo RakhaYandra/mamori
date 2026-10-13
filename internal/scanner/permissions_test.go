@@ -91,3 +91,15 @@ func TestScanPermissionsCoversWalkedFiles(t *testing.T) {
 		t.Fatalf("expected ssh-key hit in %+v", hits)
 	}
 }
+
+func TestEnvTemplatePermClean(t *testing.T) {
+	root := t.TempDir()
+	p := chmodFile(t, root, ".env.example", 0o644)
+	hits, err := CheckPath(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 0 {
+		t.Fatalf("template must be clean: %+v", hits)
+	}
+}

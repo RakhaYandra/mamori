@@ -139,6 +139,9 @@ func ScanSecretsWith(files []File, maxBytes int64, custom []rules.CustomRule) ([
 
 func isEnvFile(p string) bool {
 	base := filepath.Base(p)
+	if audit.IsEnvTemplate(base) {
+		return false
+	}
 	return base == ".env" || strings.HasPrefix(base, ".env.")
 }
 

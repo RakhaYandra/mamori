@@ -90,3 +90,24 @@ func TestParseSize(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestEmptyFileIsClean(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(root+"/empty.txt", []byte{}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Walk(root, WalkOptions{MaxBytes: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Partial) != 0 {
+		t.Fatalf("empty file must not error: %v", res.Partial)
+	}
+	if len(res.Files) != 1 {
+		t.Fatalf("empty file must be listed: %+v", res.Files)
+	}
+	hits, partial := ScanSecrets(res.Files, 100)
+	if len(partial) != 0 || len(hits) != 0 {
+		t.Fatalf("hits=%v partial=%v", hits, partial)
+	}
+}
