@@ -19,10 +19,12 @@ jobs:
 
       - name: Download mamori
         run: |
-          V=0.1.0
+          V=0.1.2
           curl -fsSLO "https://github.com/RakhaYandra/mamori/releases/download/v${V}/mamori-linux-amd64"
           curl -fsSLO "https://github.com/RakhaYandra/mamori/releases/download/v${V}/SHA256SUMS"
-          sha256sum -c --ignore-missing SHA256SUMS
+          # Prefix-robust: SHA256SUMS may list bare names or dist/ paths.
+          sha=$(sha256sum mamori-linux-amd64 | awk '{print $1}')
+          grep -q "$sha" SHA256SUMS || { echo "checksum mismatch"; exit 1; }
           chmod +x mamori-linux-amd64
 
       - name: Run audit
