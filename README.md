@@ -4,7 +4,7 @@ Read-only, local-first security hygiene for Linux developer machines:
 secret hints, Git exposure, file permissions, SSH config. No network,
 no raw secrets in output.
 
-> Status: **P1 core** — `audit`/`secrets`/`permissions` jalan (secret patterns + entropy gate, permission audit, terminal/JSON report, exit codes). `ssh`/`git`/`report` masih stub (P1-integration).
+> Status: **P1-integration** — full audit jalan: secrets (+history/staged), permissions, git tracked/staged/history, ssh client, terminal/JSON, exit codes. Sisa P2: custom rules, baseline, pre-commit.
 
 ## Requirements
 
